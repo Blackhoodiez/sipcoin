@@ -9,6 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import {
+  validateUsername,
+  validateDate,
+  sanitizeProfileData,
+  validateProfileData,
+} from "@/lib/utils";
 import { Loader2, Upload, X, Camera } from "lucide-react";
 import Image from "next/image";
 
@@ -72,60 +78,6 @@ export default function ProfileCompletionForm() {
     getInitialData();
   }, []);
 
-  const optimizeImage = async (file: File): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = document.createElement("img");
-      img.src = URL.createObjectURL(file);
-
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-
-        // Calculate new dimensions while maintaining aspect ratio
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width = Math.round((width * MAX_HEIGHT) / height);
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Could not get canvas context"));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Convert to blob with quality 0.8 (80%)
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Could not create blob"));
-            }
-          },
-          "image/jpeg",
-          0.8
-        );
-      };
-
-      img.onerror = () => {
-        reject(new Error("Could not load image"));
-      };
-    });
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,29 +112,41 @@ export default function ProfileCompletionForm() {
         throw new Error("No active user");
       }
 
-      // Optimize image before upload
-      const optimizedBlob = await optimizeImage(file);
-      const optimizedFile = new File([optimizedBlob], file.name, {
-        type: "image/jpeg",
-        lastModified: Date.now(),
-      });
-
-      const fileExt = "jpg"; // Always use jpg after optimization
+      const fileExt = file.name.split(".").pop() ?? "jpg";
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const filePath = fileName.replace(/^\/+/, "");
+
+      console.log("Uploading avatar file", file);
+      console.log("Uploading to path", filePath);
+
+      // Convert file to ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(filePath, optimizedFile, {
+        .upload(filePath, arrayBuffer, {
           cacheControl: "3600",
           upsert: true,
+          contentType: file.type,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
       const {
         data: { publicUrl },
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+      if (!publicUrl) {
+        throw new Error("Failed to generate public URL");
+      }
+
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", user.id);
 
       setFormData((prev) => ({ ...prev, avatar_url: publicUrl }));
       toast.success("Profile picture uploaded successfully");
@@ -237,54 +201,75 @@ export default function ProfileCompletionForm() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        throw new Error("No active user");
-      }
-
-      // Validate username format
-      if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
-        toast.error(
-          "Username can only contain letters, numbers, and underscores"
-        );
+        toast.error("No active user");
         setIsSubmitting(false);
         return;
       }
 
-      // Check if username is available
-      const { data: existingUser } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("username", formData.username)
-        .single();
-
-      if (existingUser) {
-        toast.error("Username is already taken");
+      // Comprehensive validation
+      const validation = validateProfileData(formData);
+      if (!validation.isValid) {
+        validation.errors.forEach((error) => toast.error(error));
         setIsSubmitting(false);
         return;
       }
+
+      // Check if username is available - use maybeSingle() instead of single()
+      if (formData.username && formData.username.trim()) {
+        const { data: existingUser, error: checkError } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("username", formData.username.trim())
+          .neq("id", user.id)
+          .maybeSingle();
+        if (checkError) {
+          toast.error("Error checking username availability");
+          setIsSubmitting(false);
+          return;
+        }
+        if (existingUser) {
+          toast.error("Username is already taken");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Prepare profile data with proper sanitization
+      const profileData = sanitizeProfileData({
+        full_name: formData.full_name,
+        username: formData.username,
+        bio: formData.bio,
+        date_of_birth: formData.date_of_birth,
+        gender: formData.gender,
+        location: formData.location,
+        interests: formData.interests,
+        avatar_url: formData.avatar_url,
+        is_profile_completed: true,
+      });
 
       // Update profile
       const { error } = await supabase
         .from("profiles")
-        .update({
-          full_name: formData.full_name,
-          username: formData.username,
-          bio: formData.bio,
-          date_of_birth: formData.date_of_birth,
-          gender: formData.gender,
-          location: formData.location,
-          interests: formData.interests,
-          avatar_url: formData.avatar_url,
-          is_profile_completed: true,
-          updated_at: new Date().toISOString(),
-        })
+        .update(profileData)
         .eq("id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === "23505") {
+          toast.error(
+            "Username is already taken. Please choose a different one."
+          );
+        } else if (error.code === "23514") {
+          toast.error("Invalid data provided. Please check your input.");
+        } else {
+          toast.error("Failed to update profile. Please try again.");
+        }
+        setIsSubmitting(false);
+        return;
+      }
 
       toast.success("Profile completed successfully!");
       router.push("/");
     } catch (error) {
-      console.error("Error updating profile:", error);
       toast.error("Failed to update profile. Please try again.");
     } finally {
       setIsSubmitting(false);

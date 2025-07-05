@@ -102,18 +102,15 @@ export async function GET(request: Request) {
         const { error: insertError } = await supabase.from("profiles").insert([
           {
             id: session.user.id,
-            email: session.user.email,
             full_name: session.user.user_metadata.full_name || "",
             is_profile_completed: false,
-            username: "",
-            bio: "",
+            username: null,
+            bio: null,
             date_of_birth: null,
-            gender: "",
-            location: "",
-            interests: "",
+            gender: null,
+            location: null,
+            interests: null,
             avatar_url: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
           },
         ]);
         if (insertError) {

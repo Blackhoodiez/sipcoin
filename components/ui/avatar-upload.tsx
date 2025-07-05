@@ -8,7 +8,6 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
-import { optimizeImage } from "@/lib/image-optimization";
 
 interface AvatarUploadProps {
   value?: string | null;
@@ -62,29 +61,45 @@ export function AvatarUpload({
           throw new Error("No active session");
         }
 
-        // Optimize image before upload
-        const optimizedBlob = await optimizeImage(file);
-        const optimizedFile = new File([optimizedBlob], file.name, {
-          type: "image/jpeg",
-          lastModified: Date.now(),
-        });
+        // Use original file without additional optimisation
+        console.log("Uploading avatar file", file);
 
-        const fileExt = "jpg";
+        const fileExt = file.name.split(".").pop() ?? "jpg";
         const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
+        const filePath = fileName.replace(/^\/+/, "");
 
+        console.log("Uploading to path", filePath);
+
+        // Convert file to ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Upload file to storage
         const { error: uploadError } = await supabase.storage
           .from("avatars")
-          .upload(filePath, optimizedFile, {
+          .upload(filePath, arrayBuffer, {
             cacheControl: "3600",
             upsert: true,
+            contentType: file.type,
           });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
 
+        // Get the public URL directly
         const {
           data: { publicUrl },
         } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+        if (!publicUrl) {
+          throw new Error("Failed to generate public URL");
+        }
+
+        await supabase
+          .from("profiles")
+          .update({ avatar_url: publicUrl })
+          .eq("id", session.user.id);
 
         onChange(publicUrl);
         toast.success("Profile picture uploaded successfully");
@@ -100,7 +115,7 @@ export function AvatarUpload({
         setIsUploading(false);
       }
     },
-    [onChange, supabase]
+    [onChange]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

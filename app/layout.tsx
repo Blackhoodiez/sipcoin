@@ -11,6 +11,7 @@ import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { PerformanceOptimizer } from "@/components/ui/performance-optimizer";
 // import { SessionWarning } from "@/components/session-warning";
 // import { CookieConsentBanner } from "@/components/cookie-consent-banner";
 
@@ -79,7 +80,9 @@ export default function RootLayout({
         className={`${inter.className} dark min-h-screen bg-zinc-950 text-white antialiased`}
       >
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <PerformanceOptimizer>{children}</PerformanceOptimizer>
+          </AuthProvider>
         </ThemeProvider>
         <Toaster
           position="top-center"

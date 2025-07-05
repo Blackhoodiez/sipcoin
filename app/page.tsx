@@ -16,7 +16,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 export default function SipCoinApp() {
   const [showSplash, setShowSplash] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const { user, isLoading } = useAuth();
+  const { user, loading } = useAuth();
 
   // Fix hydration issues by ensuring client-side rendering
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function SipCoinApp() {
   }
 
   // Show loading state while auth is loading. Can be a simple div or a dedicated spinner.
-  if (isLoading) {
+  if (loading) {
     return <div>Loading authentication...</div>; // You can replace this with a better loading indicator
   }
 
@@ -69,8 +69,8 @@ function MainAppContent() {
         {activeTab === "upload" && <UploadScreen />}
         {activeTab === "rewards" && <RewardsScreen />}
         {activeTab === "challenges" && <ChallengesScreen />}
-        {activeTab === "profile" && <ProfileScreen />}
         {activeTab === "friends" && <FriendsScreen />}
+        {activeTab === "profile" && <ProfileScreen />}
       </main>
       <div className="fixed bottom-0 left-0 right-0 bg-zinc-950 border-t border-zinc-800 shadow-lg z-50 w-full">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -87,11 +87,11 @@ function MainAppContent() {
             <TabsTrigger value="challenges">
               <Trophy size={20} />
             </TabsTrigger>
-            <TabsTrigger value="profile">
-              <User size={20} />
-            </TabsTrigger>
             <TabsTrigger value="friends">
               <Users size={20} />
+            </TabsTrigger>
+            <TabsTrigger value="profile">
+              <User size={20} />
             </TabsTrigger>
           </TabsList>
         </Tabs>

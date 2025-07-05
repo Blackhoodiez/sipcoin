@@ -10,6 +10,12 @@ export const supabase = createBrowserClient(
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
+    global: {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    },
     cookies: {
       get(name: string) {
         if (typeof document === "undefined") return null;
