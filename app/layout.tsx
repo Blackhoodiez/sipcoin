@@ -2,6 +2,7 @@ import React from "react";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import Head from 'next/head';
 
 console.log("layout.tsx: Minimal test execution point.");
 
@@ -49,6 +50,9 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -68,14 +72,11 @@ export default function RootLayout({
   console.log("layout.tsx: RootLayout function called");
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
-      <head>
-        <meta name="color-scheme" content="dark" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
-      </head>
+      <Head>
+        <title>SipCoin</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.png" />
+      </Head>
       <body
         className={`${inter.className} dark min-h-screen bg-zinc-950 text-white antialiased`}
       >
